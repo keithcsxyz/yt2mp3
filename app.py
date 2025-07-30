@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, Response, session
+from flask import Flask, request, jsonify, Response, session, send_from_directory
 import os
 import time
 import json
@@ -17,6 +17,7 @@ app.secret_key = 'your-secret-key-change-this-in-production'
 
 # Configuration
 DOWNLOAD_DIR = os.path.join(os.path.dirname(__file__), 'downloads')
+STATIC_DIR = os.path.join(os.path.dirname(__file__))
 MAX_DOWNLOADS_PER_SESSION = 50
 ALLOWED_QUALITIES = ['128', '192', '256', '320']
 
@@ -39,6 +40,20 @@ def clean_old_files():
 
 # Run file cleanup in background
 threading.Thread(target=clean_old_files, daemon=True).start()
+
+# Serve static files
+@app.route('/')
+def index():
+    return send_from_directory(STATIC_DIR, 'index.html')
+
+@app.route('/<path:filename>')
+def static_files(filename):
+    # Serve static files (CSS, JS, etc.)
+    try:
+        return send_from_directory(STATIC_DIR, filename)
+    except FileNotFoundError:
+        # If file not found, return 404
+        return "File not found", 404
 
 def is_valid_youtube_url(url):
     """Validate YouTube URL"""
@@ -333,6 +348,14 @@ def download_progress_handler():
             yield f"data: {json.dumps({'downloadId': download_id, 'error': str(e), 'progress': -1})}\n\n"
     
     return Response(progress_stream(), mimetype='text/event-stream')
+
+# Serve download files
+@app.route('/downloads/<path:filename>')
+def serve_download(filename):
+    try:
+        return send_from_directory(DOWNLOAD_DIR, filename, as_attachment=True)
+    except FileNotFoundError:
+        return "File not found", 404
 
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=8000)
