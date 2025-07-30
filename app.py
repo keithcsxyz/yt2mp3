@@ -13,7 +13,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
-app.secret_key = os.environ.get('SECRET_KEY', 'your-secret-key-change-this-in-production')
+app.secret_key = os.environ.get('SECRET_HULAAN_MO', 'your-secret-key-change-this-in-production')
 
 # Configuration
 DOWNLOAD_DIR = os.path.join(os.path.dirname(__file__), 'downloads')
