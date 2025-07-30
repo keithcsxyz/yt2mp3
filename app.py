@@ -13,7 +13,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
-app.secret_key = os.environ.get('SECRET_HULAAN_MO', 'your-secret-key-change-this-in-production')
+app.secret_key = os.environ.get('SECRET_HULAAN_MO', 'your-secret-key')
 
 # Configuration
 DOWNLOAD_DIR = os.path.join(os.path.dirname(__file__), 'downloads')
@@ -104,6 +104,18 @@ def get_video_info(url):
     try:
         import yt_dlp
         
+        # Common headers for consistency
+        common_headers = {
+            'User-Agent': os.environ.get(
+                'YTDLP_USER_AGENT',
+                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+            ),
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.5',
+            'Accept-Encoding': 'gzip, deflate',
+            'Connection': 'keep-alive',
+        }
+
         # Enhanced yt-dlp options for better compatibility
         ydl_opts = {
             'quiet': True,
@@ -112,17 +124,16 @@ def get_video_info(url):
             'socket_timeout': 30,
             'retries': 3,
             'no_check_certificate': True,
-            'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+            'user_agent': common_headers['User-Agent'],
             'referer': 'https://www.youtube.com/',
             'force_generic_extractor': False,
-            'http_headers': {
-                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-                'Accept-Language': 'en-US,en;q=0.5',
-                'Accept-Encoding': 'gzip, deflate',
-                'Connection': 'keep-alive',
-            },
-            'http_proxy': os.environ.get('HTTP_PROXY', ''),
-            'https_proxy': os.environ.get('HTTPS_PROXY', ''),
+            'http_headers': common_headers,
+            # Force IPv4 (bypasses some IPv6-only blocks)
+            'force_ipv4': True,
+            # Try bypassing geo-restrictions
+            'geo_bypass': True,
+            # Optional: override country code via env
+            'geo_bypass_country': os.environ.get('GEO_BYPASS_COUNTRY', None),
         }
         
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -142,8 +153,10 @@ def get_video_info(url):
             raise Exception("The video is not available or accessible. This could be due to regional restrictions, the video being private, or network connectivity issues.")
         elif "copyright" in error_msg.lower():
             raise Exception("The video cannot be downloaded due to copyright restrictions.")
-        elif "timeout" in error_msg.lower():
-            raise Exception("The connection timed out. Please try again or use a different video URL.")
+        elif "timeout" in error_msg.lower() or "network" in error_msg.lower() or "connection" in error_msg.lower():
+            raise Exception("Network connectivity issue detected. Please try again or use a different video URL.")
+        elif "proxy" in error_msg.lower():
+            raise Exception("Proxy connection issue. If you're using a proxy, please check your proxy settings.")
         else:
             # Fallback to basic info extraction
             video_id = re.search(r'[?&]v=([^&]+)', url)
@@ -168,6 +181,18 @@ def download_video(url, quality, download_id=None):
         # Map quality to yt-dlp format
         audio_quality = f"{quality}k"
         
+        # Common headers for consistency
+        common_headers = {
+            'User-Agent': os.environ.get(
+                'YTDLP_USER_AGENT',
+                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+            ),
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.5',
+            'Accept-Encoding': 'gzip, deflate',
+            'Connection': 'keep-alive',
+        }
+
         # Enhanced yt-dlp options for better compatibility
         ydl_opts = {
             'format': 'bestaudio/best',
@@ -182,17 +207,16 @@ def download_video(url, quality, download_id=None):
             'socket_timeout': 30,
             'retries': 3,
             'no_check_certificate': True,
-            'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+            'user_agent': common_headers['User-Agent'],
             'referer': 'https://www.youtube.com/',
             'force_generic_extractor': False,
-            'http_headers': {
-                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-                'Accept-Language': 'en-US,en;q=0.5',
-                'Accept-Encoding': 'gzip, deflate',
-                'Connection': 'keep-alive',
-            },
-            'http_proxy': os.environ.get('HTTP_PROXY', ''),
-            'https_proxy': os.environ.get('HTTPS_PROXY', ''),
+            'http_headers': common_headers,
+            # Force IPv4 (bypasses some IPv6-only blocks)
+            'force_ipv4': True,
+            # Try bypassing geo-restrictions
+            'geo_bypass': True,
+            # Optional: override country code via env
+            'geo_bypass_country': os.environ.get('GEO_BYPASS_COUNTRY', None),
         }
         
         # Get video info first
@@ -239,8 +263,10 @@ def download_video(url, quality, download_id=None):
             raise Exception("The video is not available or accessible. This could be due to regional restrictions, the video being private, or network connectivity issues.")
         elif "copyright" in error_msg.lower():
             raise Exception("The video cannot be downloaded due to copyright restrictions.")
-        elif "timeout" in error_msg.lower():
-            raise Exception("The download timed out. Please try again or use a different video URL.")
+        elif "timeout" in error_msg.lower() or "network" in error_msg.lower() or "connection" in error_msg.lower():
+            raise Exception("Network connectivity issue detected. Please try again or use a different video URL.")
+        elif "proxy" in error_msg.lower():
+            raise Exception("Proxy connection issue. If you're using a proxy, please check your proxy settings.")
         else:
             raise Exception(f"Download failed: {error_msg}")
 
@@ -372,6 +398,18 @@ def download_progress_handler():
             timestamp = int(time.time())
             temp_file = os.path.join(DOWNLOAD_DIR, f"temp_{timestamp}")
             
+            # Common headers for consistency
+            common_headers = {
+                'User-Agent': os.environ.get(
+                    'YTDLP_USER_AGENT',
+                    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+                ),
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+                'Accept-Language': 'en-US,en;q=0.5',
+                'Accept-Encoding': 'gzip, deflate',
+                'Connection': 'keep-alive',
+            }
+
             # Enhanced yt-dlp options for better compatibility
             ydl_opts = {
                 'format': 'bestaudio/best',
@@ -386,17 +424,16 @@ def download_progress_handler():
                 'socket_timeout': 30,
                 'retries': 3,
                 'no_check_certificate': True,
-                'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+                'user_agent': common_headers['User-Agent'],
                 'referer': 'https://www.youtube.com/',
                 'force_generic_extractor': False,
-                'http_headers': {
-                    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-                    'Accept-Language': 'en-US,en;q=0.5',
-                    'Accept-Encoding': 'gzip, deflate',
-                    'Connection': 'keep-alive',
-                },
-                'http_proxy': os.environ.get('HTTP_PROXY', ''),
-                'https_proxy': os.environ.get('HTTPS_PROXY', ''),
+                'http_headers': common_headers,
+                # Force IPv4 (bypasses some IPv6-only blocks)
+                'force_ipv4': True,
+                # Try bypassing geo-restrictions
+                'geo_bypass': True,
+                # Optional: override country code via env
+                'geo_bypass_country': os.environ.get('GEO_BYPASS_COUNTRY', None),
             }
             
             yield f"data: {json.dumps({'downloadId': download_id, 'progress': 40, 'message': 'Downloading video...'})}\n\n"
