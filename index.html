@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>YT2MP3 - YouTube to MP3 Converter</title>
+    <link rel="stylesheet" href="style.css" />
+    <link
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"
+      rel="stylesheet"
+    />
+    <!-- VANTA.js Dependencies -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/vanta/0.5.24/vanta.clouds.min.js"></script>
+  </head>
+  <body>
+    <!-- Animated Background -->
+    <div id="vanta-bg"></div>
+
+    <div class="container">
+      <header>
+        <h1><i class="fas fa-music"></i> YT2MP3</h1>
+        <p>Fast YouTube to MP3 Converter with Bulk Download</p>
+      </header>
+
+      <main>
+        <!-- Single URL Input -->
+        <section class="input-section">
+          <h2>Single Download</h2>
+          <div class="input-group">
+            <input
+              type="text"
+              id="singleUrl"
+              placeholder="Paste YouTube URL here..."
+              class="url-input"
+            />
+            <button onclick="addToQueue('single')" class="btn btn-primary">
+              <i class="fas fa-plus"></i> Add to Queue
+            </button>
+          </div>
+        </section>
+
+        <!-- Bulk URL Input -->
+        <section class="input-section">
+          <h2>Bulk Download</h2>
+          <div class="bulk-input">
+            <textarea
+              id="bulkUrls"
+              placeholder="Paste multiple YouTube URLs here (one per line)..."
+              rows="6"
+            ></textarea>
+            <button onclick="addToQueue('bulk')" class="btn btn-primary">
+              <i class="fas fa-list"></i> Add All to Queue
+            </button>
+          </div>
+        </section>
+
+        <!-- Quality Selection -->
+        <section class="quality-section">
+          <h3>Audio Quality</h3>
+          <div class="quality-options">
+            <label class="quality-option">
+              <input type="radio" name="quality" value="320" checked />
+              <span>320 kbps (Best Quality)</span>
+            </label>
+            <label class="quality-option">
+              <input type="radio" name="quality" value="256" />
+              <span>256 kbps (High Quality)</span>
+            </label>
+            <label class="quality-option">
+              <input type="radio" name="quality" value="192" />
+              <span>192 kbps (Good Quality)</span>
+            </label>
+            <label class="quality-option">
+              <input type="radio" name="quality" value="128" />
+              <span>128 kbps (Standard Quality)</span>
+            </label>
+          </div>
+        </section>
+
+        <!-- Download Queue -->
+        <section class="queue-section">
+          <div class="queue-header">
+            <h3>Download Queue (<span id="queueCount">0</span>)</h3>
+            <div class="queue-actions">
+              <button
+                onclick="startDownloadAll()"
+                class="btn btn-success"
+                id="downloadAllBtn"
+                disabled
+              >
+                <i class="fas fa-download"></i> Download All
+              </button>
+              <button onclick="clearQueue()" class="btn btn-danger">
+                <i class="fas fa-trash"></i> Clear Queue
+              </button>
+            </div>
+          </div>
+          <div id="downloadQueue" class="queue-list">
+            <div class="empty-queue">
+              <i class="fas fa-music"></i>
+              <p>No items in queue. Add YouTube URLs to get started!</p>
+            </div>
+          </div>
+        </section>
+
+        <!-- Progress Section -->
+        <section
+          class="progress-section"
+          id="progressSection"
+          style="display: none"
+        >
+          <h3>Download Progress</h3>
+          <div class="overall-progress">
+            <div class="progress-bar">
+              <div class="progress-fill" id="overallProgress"></div>
+            </div>
+            <span id="progressText">0% Complete</span>
+          </div>
+          <div id="downloadStatus" class="download-status"></div>
+        </section>
+      </main>
+
+      <footer>
+        <p>&copy; 2025 YT2MP3 - Fast YouTube to MP3 Converter</p>
+      </footer>
+    </div>
+
+    <!-- Loading Modal -->
+    <div id="loadingModal" class="modal">
+      <div class="modal-content">
+        <div class="loader"></div>
+        <p>Processing your request...</p>
+      </div>
+    </div>
+
+    <script src="script.js"></script>
+
+    <!-- VANTA.js Cloud Background -->
+    <script>
+      VANTA.CLOUDS({
+        el: "#vanta-bg",
+        mouseControls: true,
+        touchControls: true,
+        gyroControls: false,
+        minHeight: 200.0,
+        minWidth: 200.0,
+        backgroundColor: 0xffffff,
+        skyColor: 0x68b8d7,
+        cloudColor: 0xadc1de,
+        cloudShadowColor: 0x183550,
+        sunColor: 0xff9919,
+        sunGlareColor: 0xff6633,
+        sunlightColor: 0xff9933,
+        speed: 1,
+      });
+    </script>
+  </body>
+</html>
