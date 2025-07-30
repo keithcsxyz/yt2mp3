@@ -13,7 +13,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
-app.secret_key = os.environ.get('SECRET_HULAAN_MO', 'your-secret-key-change-this-in-production')
+app.secret_key = os.environ.get('SECRET_KEY', 'your-secret-key-change-this-in-production')
 
 # Configuration
 DOWNLOAD_DIR = os.path.join(os.path.dirname(__file__), 'downloads')
@@ -22,8 +22,11 @@ MAX_DOWNLOADS_PER_SESSION = 50
 ALLOWED_QUALITIES = ['128', '192', '256', '320']
 
 # Create downloads directory if it doesn't exist
-if not os.path.exists(DOWNLOAD_DIR):
-    os.makedirs(DOWNLOAD_DIR, mode=0o755)
+try:
+    if not os.path.exists(DOWNLOAD_DIR):
+        os.makedirs(DOWNLOAD_DIR, mode=0o755)
+except Exception as e:
+    logger.error(f"Error creating downloads directory: {e}")
 
 # Clean old files on startup
 def clean_old_files():
@@ -60,6 +63,30 @@ def is_valid_youtube_url(url):
     yt_regex = r'^(https?:\/\/)?(www\.)?(youtube\.com\/(watch\?v=|embed\/|v\/)|youtu\.be\/)[\w-]+'
     return re.match(yt_regex, url) is not None
 
+def test_youtube_connectivity():
+    """Test connectivity to YouTube"""
+    try:
+        import urllib.request
+        import urllib.error
+        
+        # Test URL
+        test_url = "https://www.youtube.com/"
+        
+        # Create a request with headers
+        req = urllib.request.Request(
+            test_url,
+            headers={
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+            }
+        )
+        
+        # Try to open the URL
+        response = urllib.request.urlopen(req, timeout=10)
+        return response.getcode() == 200
+    except Exception as e:
+        logger.error(f"YouTube connectivity test failed: {e}")
+        return False
+
 def sanitize_filename(filename):
     """Sanitize filename by removing invalid characters"""
     filename = re.sub(r'[<>:"/\\|?*]', '', filename)
@@ -77,10 +104,25 @@ def get_video_info(url):
     try:
         import yt_dlp
         
+        # Enhanced yt-dlp options for better compatibility
         ydl_opts = {
             'quiet': True,
             'no_warnings': True,
             'format': 'bestaudio/best',
+            'socket_timeout': 30,
+            'retries': 3,
+            'no_check_certificate': True,
+            'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+            'referer': 'https://www.youtube.com/',
+            'force_generic_extractor': False,
+            'http_headers': {
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+                'Accept-Language': 'en-US,en;q=0.5',
+                'Accept-Encoding': 'gzip, deflate',
+                'Connection': 'keep-alive',
+            },
+            'http_proxy': os.environ.get('HTTP_PROXY', ''),
+            'https_proxy': os.environ.get('HTTPS_PROXY', ''),
         }
         
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -94,16 +136,25 @@ def get_video_info(url):
             }
     except Exception as e:
         logger.error(f"Error getting video info: {e}")
-        # Fallback to basic info extraction
-        video_id = re.search(r'[?&]v=([^&]+)', url)
-        video_id = video_id.group(1) if video_id else 'unknown'
-        
-        return {
-            'title': f'YouTube Video {video_id}',
-            'duration': '',
-            'thumbnail': '',
-            'uploader': '',
-        }
+        # Provide more specific error messages
+        error_msg = str(e)
+        if "unavailable" in error_msg.lower():
+            raise Exception("The video is not available or accessible. This could be due to regional restrictions, the video being private, or network connectivity issues.")
+        elif "copyright" in error_msg.lower():
+            raise Exception("The video cannot be downloaded due to copyright restrictions.")
+        elif "timeout" in error_msg.lower():
+            raise Exception("The connection timed out. Please try again or use a different video URL.")
+        else:
+            # Fallback to basic info extraction
+            video_id = re.search(r'[?&]v=([^&]+)', url)
+            video_id = video_id.group(1) if video_id else 'unknown'
+            
+            return {
+                'title': f'YouTube Video {video_id}',
+                'duration': '',
+                'thumbnail': '',
+                'uploader': '',
+            }
 
 def download_video(url, quality, download_id=None):
     """Download video and convert to MP3 using yt-dlp"""
@@ -117,6 +168,7 @@ def download_video(url, quality, download_id=None):
         # Map quality to yt-dlp format
         audio_quality = f"{quality}k"
         
+        # Enhanced yt-dlp options for better compatibility
         ydl_opts = {
             'format': 'bestaudio/best',
             'postprocessors': [{
@@ -127,6 +179,20 @@ def download_video(url, quality, download_id=None):
             'outtmpl': temp_file + '.%(ext)s',
             'quiet': True,
             'no_warnings': True,
+            'socket_timeout': 30,
+            'retries': 3,
+            'no_check_certificate': True,
+            'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+            'referer': 'https://www.youtube.com/',
+            'force_generic_extractor': False,
+            'http_headers': {
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+                'Accept-Language': 'en-US,en;q=0.5',
+                'Accept-Encoding': 'gzip, deflate',
+                'Connection': 'keep-alive',
+            },
+            'http_proxy': os.environ.get('HTTP_PROXY', ''),
+            'https_proxy': os.environ.get('HTTPS_PROXY', ''),
         }
         
         # Get video info first
@@ -167,7 +233,16 @@ def download_video(url, quality, download_id=None):
             
     except Exception as e:
         logger.error(f"Error downloading video: {e}")
-        raise Exception(f"Download failed: {str(e)}")
+        # Provide more specific error messages
+        error_msg = str(e)
+        if "unavailable" in error_msg.lower():
+            raise Exception("The video is not available or accessible. This could be due to regional restrictions, the video being private, or network connectivity issues.")
+        elif "copyright" in error_msg.lower():
+            raise Exception("The video cannot be downloaded due to copyright restrictions.")
+        elif "timeout" in error_msg.lower():
+            raise Exception("The download timed out. Please try again or use a different video URL.")
+        else:
+            raise Exception(f"Download failed: {error_msg}")
 
 @app.route('/download.php', methods=['POST', 'OPTIONS'])
 def download_handler():
@@ -211,20 +286,26 @@ def download_handler():
             return jsonify({'success': False, 'error': 'Download limit reached for this session'}), 400, response_headers
         
         if action == 'getInfo':
-            info = get_video_info(url)
-            response = jsonify({
-                'success': True,
-                'title': info['title'],
-                'duration': info['duration'],
-                'thumbnail': info['thumbnail']
-            })
+            try:
+                info = get_video_info(url)
+                response = jsonify({
+                    'success': True,
+                    'title': info['title'],
+                    'duration': info['duration'],
+                    'thumbnail': info['thumbnail']
+                })
+            except Exception as e:
+                return jsonify({'success': False, 'error': str(e)}), 400, response_headers
         else:
-            result = download_video(url, quality)
-            
-            # Increment session counter
-            session['downloads'] = session.get('downloads', 0) + 1
-            
-            response = jsonify(result)
+            try:
+                result = download_video(url, quality)
+                
+                # Increment session counter
+                session['downloads'] = session.get('downloads', 0) + 1
+                
+                response = jsonify(result)
+            except Exception as e:
+                return jsonify({'success': False, 'error': str(e)}), 400, response_headers
         
         # Add headers to response
         for key, value in response_headers.items():
@@ -280,13 +361,18 @@ def download_progress_handler():
             yield f"data: {json.dumps({'downloadId': download_id, 'progress': 10, 'message': 'Getting video information...'})}\n\n"
             
             # Get video info
-            info = get_video_info(url)
-            yield f"data: {json.dumps({'downloadId': download_id, 'progress': 25, 'message': 'Starting download: ' + info['title']})}\n\n"
+            try:
+                info = get_video_info(url)
+                yield f"data: {json.dumps({'downloadId': download_id, 'progress': 25, 'message': 'Starting download: ' + info['title']})}\n\n"
+            except Exception as e:
+                yield f"data: {json.dumps({'downloadId': download_id, 'error': str(e), 'progress': -1})}\n\n"
+                return
             
             # Download with progress
             timestamp = int(time.time())
             temp_file = os.path.join(DOWNLOAD_DIR, f"temp_{timestamp}")
             
+            # Enhanced yt-dlp options for better compatibility
             ydl_opts = {
                 'format': 'bestaudio/best',
                 'postprocessors': [{
@@ -297,6 +383,20 @@ def download_progress_handler():
                 'outtmpl': temp_file + '.%(ext)s',
                 'quiet': True,
                 'no_warnings': True,
+                'socket_timeout': 30,
+                'retries': 3,
+                'no_check_certificate': True,
+                'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+                'referer': 'https://www.youtube.com/',
+                'force_generic_extractor': False,
+                'http_headers': {
+                    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+                    'Accept-Language': 'en-US,en;q=0.5',
+                    'Accept-Encoding': 'gzip, deflate',
+                    'Connection': 'keep-alive',
+                },
+                'http_proxy': os.environ.get('HTTP_PROXY', ''),
+                'https_proxy': os.environ.get('HTTPS_PROXY', ''),
             }
             
             yield f"data: {json.dumps({'downloadId': download_id, 'progress': 40, 'message': 'Downloading video...'})}\n\n"
@@ -356,6 +456,22 @@ def serve_download(filename):
         return send_from_directory(DOWNLOAD_DIR, filename, as_attachment=True)
     except FileNotFoundError:
         return "File not found", 404
+
+@app.route('/test-youtube')
+def test_youtube():
+    """Test YouTube connectivity endpoint"""
+    try:
+        connectivity = test_youtube_connectivity()
+        return jsonify({
+            'success': True,
+            'youtube_accessible': connectivity,
+            'message': 'YouTube is accessible' if connectivity else 'YouTube is not accessible'
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
 
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=8000)
